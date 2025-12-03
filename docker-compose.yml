@@ -29,6 +29,10 @@ services:
       # HuggingFace Configuration
       - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
       - HUGGINGFACE_MODEL=${HUGGINGFACE_MODEL:-Pulk17/Fake-News-Detection}
+      - HUGGINGFACE_API_BASE_URL=${HUGGINGFACE_API_BASE_URL:-}
+      
+      # DeepSeek Configuration
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
       
       # Crawler Configuration
       - SUBREDDITS=${SUBREDDITS:-news,worldnews,politics,technology,science}
