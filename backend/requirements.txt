@@ -8,11 +8,24 @@ python-dotenv==1.0.0
 httpx==0.26.0
 apscheduler==3.10.4
 python-multipart==0.0.6
-numpy==1.26.3
+numpy
 scikit-learn==1.4.0
 colorlog
 tqdm
 certifi
+pandas==2.1.4
+python-dateutil==2.8.2
+
+# ========================
+# ML/AI Dependencies
+# ========================
+# Google Generative AI (Gemini)
+google-generativeai>=0.3.0
+
+# Transformers and PyTorch for local HuggingFace models
+torch>=2.1.0
+transformers>=4.35.0
+accelerate>=0.25.0
 
 
 

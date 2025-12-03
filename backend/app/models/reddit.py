@@ -37,3 +37,13 @@ class RedditPost(BaseModel):
     
     author: Optional[Author] = Field(default=None, description="Tác giả")
     subreddit: Subreddit = Field(..., description="Subreddit")
+    
+    # Fake News Detection
+    prediction: Optional[dict] = Field(default=None, description="Kết quả phát hiện fake news")
+    # prediction structure:
+    # {
+    #   "label": "REAL" | "FAKE",
+    #   "confidence": 0.95,
+    #   "predicted_at": "2025-11-23T10:30:00",
+    #   "model": "Pulk17/Fake-News-Detection"
+    # }

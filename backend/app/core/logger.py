@@ -52,6 +52,11 @@ root_logger.setLevel(log_level)
 root_logger.addHandler(stream_handler)
 # root_logger.addHandler(file_handler) # Bỏ comment dòng này để ghi ra file
 
+# Giảm log thừa từ pymongo và các thư viện bên ngoài
+logging.getLogger('pymongo').setLevel(logging.WARNING)
+logging.getLogger('motor').setLevel(logging.WARNING)
+logging.getLogger('asyncio').setLevel(logging.WARNING)
+
 # Hàm để các module khác sử dụng
 def get_logger(name: str) -> logging.Logger:
     """

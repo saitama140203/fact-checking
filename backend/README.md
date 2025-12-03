@@ -1,238 +1,221 @@
-# 🤖 Fake News Detector - Automated Crawler
+# 🔍 Fake News Detector - Backend API
 
-## 🚀 Quick Start
+API backend cho hệ thống phát hiện tin giả từ Reddit sử dụng AI.
+
+## 📋 Mục lục
+
+- [Tính năng](#-tính-năng)
+- [Cài đặt](#-cài-đặt)
+- [Cấu hình](#️-cấu-hình)
+- [Chạy ứng dụng](#-chạy-ứng-dụng)
+- [API Endpoints](#-api-endpoints)
+- [Deployment](#-deployment)
+
+## ✨ Tính năng
+
+- 🤖 **AI Detection**: Sử dụng Hugging Face model (Pulk17/Fake-News-Detection) để phát hiện fake news
+- 📊 **Analytics**: 10+ endpoints cho visualization và thống kê
+- 🔄 **Auto Crawler**: Tự động crawl Reddit posts định kỳ
+- 📈 **Advanced Analysis**: Phân tích xu hướng, source credibility, risk assessment
+- 🌐 **Cloud Ready**: Docker support cho cloud deployment
+
+## 🚀 Cài đặt
+
+### Yêu cầu
+
+- Python 3.11+
+- MongoDB Atlas account
+- Reddit API credentials
+- HuggingFace API key
+
+### Cài đặt dependencies
 
 ```bash
-# 1. Install
+# Tạo virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# hoặc
+.\venv\Scripts\activate  # Windows
+
+# Cài đặt packages
 pip install -r requirements.txt
+```
 
-# 2. Configure
+## ⚙️ Cấu hình
+
+1. Copy file env.example thành .env:
+
+```bash
 cp env.example .env
-# Edit .env with your MongoDB and Reddit credentials
+```
 
-# 3. Run
+2. Điền các thông tin cần thiết:
+
+```env
+# MongoDB Atlas
+MONGODB_ATLAS_URI=mongodb+srv://...
+MONGODB_DB_NAME=fake_news_detector
+
+# Reddit API (https://www.reddit.com/prefs/apps)
+REDDIT_CLIENT_ID=your_client_id
+REDDIT_CLIENT_SECRET=your_client_secret
+REDDIT_USER_AGENT=FakeNewsDetector/2.0
+
+# HuggingFace (https://huggingface.co/settings/tokens)
+HUGGINGFACE_API_KEY=your_api_key
+```
+
+## 🏃 Chạy ứng dụng
+
+### Development
+
+```bash
 python main.py
 ```
 
-**Hệ thống sẽ tự động:**
-- ✅ Kết nối MongoDB
-- ✅ Crawl **5 tháng** dữ liệu lần đầu (~2500 posts)
-- ✅ Tiếp tục crawl **mỗi 30 phút** (incremental)
-- ✅ Insert trực tiếp vào database
-
----
-
-## 🎯 Features
-
-| Feature | Status | Description |
-|---------|--------|-------------|
-| **Historical Crawl** | ✅ | Crawl 5 tháng data khi DB trống |
-| **Incremental Crawl** | ✅ | Chỉ lấy posts mới sau đó |
-| **PyMongo Async** | ✅ | Native asyncio, không dùng Motor |
-| **Direct to DB** | ✅ | Không qua JSON trung gian |
-| **Automated Scheduler** | ✅ | APScheduler - crawl mỗi 30 phút |
-| **REST API** | ✅ | Monitor và control qua API |
-| **Optimized** | ✅ | 10x nhanh (không load comments) |
-
----
-
-## 📊 Data Volume
-
-### First Run:
-- **Time**: ~3-5 phút
-- **Data**: ~2000-2500 posts
-- **Timeframe**: 5 tháng gần nhất
-- **Subreddits**: news, worldnews, politics, technology, science
-
-### Incremental Runs (every 30 min):
-- **Time**: ~15-30 giây
-- **Data**: ~50-150 posts mới
-- **Timeframe**: 30 phút gần nhất
-
----
-
-## 📚 Documentation
-
-Xem chi tiết trong các files sau:
-
-1. **[QUICKSTART.md](QUICKSTART.md)** - Hướng dẫn nhanh 5 phút
-2. **[HISTORICAL_CRAWL.md](HISTORICAL_CRAWL.md)** - Chi tiết về historical crawl
-3. **[CRAWLER_README.md](CRAWLER_README.md)** - Documentation đầy đủ
-4. **[BUG_FIXES.md](BUG_FIXES.md)** - Log các bugs đã fix
-5. **[COMPLETE_IMPLEMENTATION.md](COMPLETE_IMPLEMENTATION.md)** - Implementation summary
-
----
-
-## 🎛️ Configuration
-
-File `.env`:
-
-```env
-# MongoDB
-MONGODB_ATLAS_URI=mongodb+srv://user:pass@cluster.mongodb.net/
-MONGODB_DB_NAME=fake_news_detector
-
-# Reddit API (get from https://www.reddit.com/prefs/apps)
-REDDIT_CLIENT_ID=your_id
-REDDIT_CLIENT_SECRET=your_secret
-
-# Crawler
-SUBREDDITS=news,worldnews,politics,technology,science
-CRAWL_INTERVAL_MINUTES=30
-POSTS_PER_SUBREDDIT=100
-
-# Historical Crawl (lần đầu tiên)
-INITIAL_CRAWL_MONTHS=5     # Số tháng crawl khi DB trống
-INITIAL_CRAWL_LIMIT=500    # Số posts tối đa mỗi subreddit
-```
-
----
-
-## 📡 API Endpoints
+Hoặc với uvicorn:
 
 ```bash
-# Root
-GET http://localhost:8000/
-
-# Health check
-GET http://localhost:8000/health
-
-# Crawler status
-GET http://localhost:8000/crawler/status
-
-# Manual trigger
-POST http://localhost:8000/crawler/run-now
-
-# Statistics
-GET http://localhost:8000/stats
-
-# Query posts
-GET http://localhost:8000/posts/subreddit/news?limit=10
-GET http://localhost:8000/posts/{post_id}
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
----
+### Production
 
-## 🏗️ Architecture
-
-```
-FastAPI App
-    │
-    ├─► MongoDB (PyMongo Async)
-    │   ├─► reddit_posts (with indexes)
-    │   └─► crawl_metadata (tracking)
-    │
-    ├─► APScheduler
-    │   └─► Crawl Job (Every 30 min)
-    │
-    └─► Crawler Pipeline
-        │
-        ├─► First Time (DB empty)
-        │   └─► crawl_historical(5 months, 500 posts)
-        │
-        └─► Subsequent Times
-            └─► crawl_for_analysis(100 posts) + filter
-```
-
----
-
-## ⚡ Performance
-
-### Optimizations Applied:
-- ✅ Removed comment loading (10x faster)
-- ✅ PyMongo Async API (native asyncio)
-- ✅ Lazy initialization (no timeout errors)
-- ✅ Smart filtering (incremental only)
-- ✅ Bulk operations where possible
-
-### Results:
-- **Crawl speed**: ~0.2s per post (vs 2-3s before)
-- **Memory**: ~50MB (vs 200MB before)
-- **API calls**: 1-2 per post (vs 3-5 before)
-
----
-
-## 🐛 Troubleshooting
-
-### Error: MongoDB connection failed
 ```bash
-# Check .env credentials
-# Whitelist your IP on MongoDB Atlas
+uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
-### Error: Reddit API error
+### Docker
+
 ```bash
-# Check Reddit credentials in .env
-# Ensure app type is "script" on Reddit
+docker build -t fake-news-backend .
+docker run -p 8000:8000 --env-file .env fake-news-backend
 ```
 
-### Logs
+## 📚 API Endpoints
+
+### Root Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | API information |
+| `/health` | GET | Health check |
+| `/stats` | GET | System statistics |
+| `/docs` | GET | Swagger UI |
+| `/redoc` | GET | ReDoc documentation |
+
+### Prediction API (`/prediction`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/prediction/single/{post_id}` | POST | Predict single post |
+| `/prediction/batch` | POST | Batch prediction |
+| `/prediction/status` | GET | Batch prediction status |
+| `/prediction/stats` | GET | Prediction statistics |
+| `/prediction/posts/fake` | GET | Get fake news posts |
+| `/prediction/posts/real` | GET | Get real news posts |
+
+### Analytics API (`/analytics`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/analytics/fake-vs-real` | GET | Fake vs Real distribution |
+| `/analytics/timeline` | GET | Timeline data |
+| `/analytics/by-subreddit` | GET | Stats by subreddit |
+| `/analytics/by-domain` | GET | Stats by domain |
+| `/analytics/engagement-comparison` | GET | Engagement metrics |
+| `/analytics/time-distribution` | GET | Heatmap data |
+| `/analytics/keywords` | GET | Keywords frequency |
+| `/analytics/confidence-distribution` | GET | Confidence histogram |
+| `/analytics/by-flair` | GET | Stats by flair |
+| `/analytics/author-credibility` | GET | Author analysis |
+| `/analytics/summary` | GET | Summary dashboard |
+
+### Advanced Analysis API (`/analysis`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/analysis/source/{domain}` | GET | Source credibility score |
+| `/analysis/sources/top-credible` | GET | Most credible sources |
+| `/analysis/sources/warning-list` | GET | Least credible sources |
+| `/analysis/trend` | GET | Fake news trend analysis |
+| `/analysis/trending-topics` | GET | Trending fake topics |
+| `/analysis/post/{post_id}` | GET | Detailed post analysis |
+| `/analysis/report` | GET | Comprehensive report |
+| `/analysis/risk-assessment` | GET | Risk assessment |
+
+### User Analysis API (`/analyze`) ⭐ NEW
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/analyze/text` | POST | Phân tích bài viết từ title + content |
+| `/analyze/url` | POST | Phân tích từ Reddit URL |
+| `/analyze/quick` | POST | Phân tích nhanh (chỉ cần title) |
+
+**Ví dụ sử dụng:**
+
 ```bash
-tail -f app_log.log
+# Phân tích từ text
+curl -X POST "http://localhost:8000/analyze/text" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Breaking: Scientists discover...", "content": "..."}'
+
+# Phân tích từ Reddit URL
+curl -X POST "http://localhost:8000/analyze/url" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://reddit.com/r/news/comments/abc123/..."}'
+
+# Phân tích nhanh
+curl -X POST "http://localhost:8000/analyze/quick?title=Breaking news..."
 ```
 
----
+### Crawler API (`/crawler`)
 
-## 📈 Monitoring
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/crawler/status` | GET | Crawler status |
+| `/crawler/run` | POST | Trigger manual crawl |
+| `/crawler/start` | POST | Start scheduler |
+| `/crawler/stop` | POST | Stop scheduler |
+| `/crawler/config` | GET | Crawler configuration |
+| `/crawler/stats` | GET | Crawler statistics |
+| `/crawler/posts/recent` | GET | Recent posts |
 
-### View logs in real-time:
+## 🐳 Deployment
+
+### Docker Compose
+
 ```bash
-tail -f app_log.log | grep -E "(INFO|ERROR|WARNING)"
+# Development
+docker-compose -f docker-compose.dev.yml up
+
+# Production
+docker-compose up -d
 ```
 
-### Check database:
-```python
-from app.core.database import mongodb
-from app.services.database_service import RedditPostService
-import asyncio
+### Cloud Platforms
 
-async def check():
-    await mongodb.connect()
-    total = await RedditPostService.get_total_posts()
-    print(f"Total posts: {total}")
-    await mongodb.close()
+#### Railway
 
-asyncio.run(check())
-```
+1. Connect GitHub repository
+2. Add environment variables
+3. Deploy
 
----
+#### Render
 
-## 🔐 Security
+1. Create new Web Service
+2. Connect repository
+3. Set build command: `pip install -r requirements.txt`
+4. Set start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 
-- ✅ Environment variables for credentials
-- ✅ Read-only Reddit API access
-- ✅ MongoDB TLS/SSL encryption
-- ✅ Pydantic input validation
-- ✅ No sensitive data in logs
+#### AWS/GCP/Azure
 
----
+Use Docker image hoặc deploy trực tiếp với uvicorn.
 
-## 🎯 Next Steps
+## 📝 License
 
-### For Development:
-1. Test với real credentials
-2. Monitor first crawl
-3. Verify data quality
-4. Adjust configs if needed
+MIT License
 
-### For Production:
-1. Set up proper .env
-2. Configure MongoDB indexes
-3. Set up monitoring/alerts
-4. Deploy với process manager (pm2, systemd)
-5. Set up backups
+## 🤝 Contributing
 
----
-
-## 📞 Support
-
-Xem các file documentation trong thư mục `backend/` để biết thêm chi tiết.
-
----
-
-**Version:** 1.2.0  
-**Status:** Production Ready ✅  
-**Last Updated:** November 13, 2025  
-**Performance:** 10x Optimized  
-**Data Coverage:** 5 months historical + real-time incremental
-
+Pull requests are welcome!

@@ -23,7 +23,7 @@ class MongoDB:
             cls.client = AsyncMongoClient(
                 settings.mongodb_atlas_uri,
                 tlsCAFile=certifi.where(),
-                serverSelectionTimeoutMS=5000
+                serverSelectionTimeoutMS=10000
             )
             # Ping để test connection
             await cls.client.admin.command("ping")
