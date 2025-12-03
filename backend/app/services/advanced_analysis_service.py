@@ -239,7 +239,16 @@ class AdvancedAnalysisService:
                         "fake_count": {
                             "$sum": {"$cond": [{"$eq": ["$prediction.label", "FAKE"]}, 1, 0]}
                         },
-                        "avg_confidence": {"$avg": "$prediction.confidence"}
+                        # Trung bình confidence chỉ cho fake posts
+                        "avg_fake_confidence": {
+                            "$avg": {
+                                "$cond": [
+                                    {"$eq": ["$prediction.label", "FAKE"]},
+                                    "$prediction.confidence",
+                                    None,
+                                ]
+                            }
+                        },
                     }
                 },
                 {"$match": {"total": {"$gte": min_posts}, "fake_count": {"$gte": 1}}},
@@ -254,26 +263,43 @@ class AdvancedAnalysisService:
             cursor = await collection.aggregate(pipeline)
             results = await cursor.to_list(length=limit)
             
-            return [
-                {
-                    "domain": item["_id"],
-                    "credibility_score": None,  # Not calculated for warning sources
-                    "risk_level": "VERY_HIGH" if item["fake_ratio"] > 0.5 else "HIGH",
-                    "risk_color": "red" if item["fake_ratio"] > 0.5 else "orange",
-                    "breakdown": {
-                        "total_posts": item["total"],
-                        "fake_posts": item["fake_count"],
-                        "real_posts": item["total"] - item["fake_count"],
-                        "fake_ratio": round(item["fake_ratio"], 4),  # Ratio 0-1
-                        "fake_percentage": round(item["fake_ratio"] * 100, 2),  # Percentage 0-100
-                        "avg_fake_confidence": round(item.get("avg_confidence", 0) * 100, 2),
-                        "fake_avg_score": 0,  # Not calculated in this endpoint
-                        "real_avg_score": 0  # Not calculated in this endpoint
-                    },
-                    "recommendation": "⚠️ Nguồn này có tỷ lệ fake news cao. Cần kiểm chứng kỹ thông tin từ nguồn này."
-                }
-                for item in results
-            ]
+            warning_sources: List[Dict[str, Any]] = []
+
+            for item in results:
+                fake_ratio = float(item.get("fake_ratio", 0) or 0)
+                avg_fake_conf = float(item.get("avg_fake_confidence", 0) or 0)
+
+                # Tính credibility_score tương tự logic get_source_credibility_score
+                credibility_score = 100.0
+                credibility_score -= fake_ratio * 50.0
+                credibility_score -= avg_fake_conf * 20.0
+                credibility_score = max(0.0, min(100.0, credibility_score))
+
+                # Giữ nguyên logic risk_level/risk_color theo fake_ratio để không đổi semantics warning list
+                risk_level = "VERY_HIGH" if fake_ratio > 0.5 else "HIGH"
+                risk_color = "red" if fake_ratio > 0.5 else "orange"
+
+                warning_sources.append(
+                    {
+                        "domain": item["_id"],
+                        "credibility_score": round(credibility_score, 2),
+                        "risk_level": risk_level,
+                        "risk_color": risk_color,
+                        "breakdown": {
+                            "total_posts": item["total"],
+                            "fake_posts": item["fake_count"],
+                            "real_posts": item["total"] - item["fake_count"],
+                            "fake_ratio": round(fake_ratio, 4),  # Ratio 0-1
+                            "fake_percentage": round(fake_ratio * 100, 2),  # Percentage 0-100
+                            "avg_fake_confidence": round(avg_fake_conf * 100, 2),
+                            "fake_avg_score": 0,  # Not calculated in this endpoint
+                            "real_avg_score": 0,  # Not calculated in this endpoint
+                        },
+                        "recommendation": "⚠️ Nguồn này có tỷ lệ fake news cao. Cần kiểm chứng kỹ thông tin từ nguồn này.",
+                    }
+                )
+
+            return warning_sources
             
         except Exception as e:
             logger.error(f"Error getting least credible sources: {e}")
@@ -722,14 +748,17 @@ class AdvancedAnalysisService:
         try:
             collection = mongodb.get_collection("reddit_posts")
             
-            start_date = datetime.now() - timedelta(days=days)
+            now = datetime.now()
+            start_date = now - timedelta(days=days)
             
             # Basic stats
             pipeline = [
                 {
                     "$match": {
                         "prediction": {"$exists": True, "$ne": None},
-                        "created_utc": {"$gte": start_date}
+                        # CHÚ Ý: created_utc trong DB đang ở dạng STRING (do model_dump(mode=\"json\"))
+                        # nên phải so sánh bằng ISO string range, giống fix ở get_fake_news_trend
+                        "created_utc": {"$gte": start_date.isoformat(), "$lte": now.isoformat()},
                     }
                 },
                 {

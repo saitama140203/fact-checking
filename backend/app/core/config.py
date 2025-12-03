@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     # ========================
     # Crawler Configuration
     # ========================
-    enable_crawler: bool = True  # Tắt/bật crawler scheduler
+    enable_crawler: bool = False  # Tắt/bật crawler scheduler
     subreddits: str = "news,worldnews,politics,technology,science"
     crawl_interval_minutes: int = 30
     posts_per_subreddit: int = 100

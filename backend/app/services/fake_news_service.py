@@ -46,7 +46,7 @@ class FakeNewsDetectionService:
     BATCH_DELAY = 1  # Delay giữa các batches (seconds) - chỉ cho API mode
     
     # Labels mapping
-    HF_LABELS = ["fake", "real"]  # Theo thứ tự của model
+    HF_LABELS = ["fake", "real"]  
     
     def __init__(self):
         """Initialize service với cấu hình từ settings."""

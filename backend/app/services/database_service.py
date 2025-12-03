@@ -937,6 +937,7 @@ class AnalyticsService:
         except Exception as e:
             logger.error(f"Failed to get keywords frequency: {e}")
             return {"fake_keywords": [], "real_keywords": []}
+
     
     @staticmethod
     async def get_confidence_distribution(

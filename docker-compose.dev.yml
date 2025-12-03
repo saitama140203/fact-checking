@@ -1,0 +1,65 @@
+# ===========================
+# FAKE NEWS DETECTOR
+# Docker Compose - Development
+# ===========================
+
+version: '3.8'
+
+services:
+  # ========================
+  # BACKEND API (Development)
+  # ========================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: fake-news-backend-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_ATLAS_URI=${MONGODB_ATLAS_URI}
+      - MONGODB_DB_NAME=${MONGODB_DB_NAME:-fake_news_detector}
+      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
+      - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET}
+      - REDDIT_USER_AGENT=${REDDIT_USER_AGENT:-FakeNewsDetector/2.0}
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
+      - HUGGINGFACE_MODEL=${HUGGINGFACE_MODEL:-Pulk17/Fake-News-Detection}
+      - SUBREDDITS=${SUBREDDITS:-news,worldnews}
+      - CRAWL_INTERVAL_MINUTES=${CRAWL_INTERVAL_MINUTES:-60}
+      - POSTS_PER_SUBREDDIT=${POSTS_PER_SUBREDDIT:-50}
+      - ENVIRONMENT=development
+      - DEBUG=True
+      - API_RELOAD=True
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    restart: unless-stopped
+    networks:
+      - fake-news-network-dev
+
+  # ========================
+  # FRONTEND (Development)
+  # ========================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: fake-news-frontend-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NODE_ENV=development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    restart: unless-stopped
+    networks:
+      - fake-news-network-dev
+
+networks:
+  fake-news-network-dev:
+    driver: bridge
+

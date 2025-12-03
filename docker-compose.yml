@@ -1,0 +1,102 @@
+# ===========================
+# FAKE NEWS DETECTOR
+# Docker Compose Configuration
+# ===========================
+
+version: '3.8'
+
+services:
+  # ========================
+  # BACKEND API
+  # ========================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fake-news-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # MongoDB Configuration
+      - MONGODB_ATLAS_URI=${MONGODB_ATLAS_URI}
+      - MONGODB_DB_NAME=${MONGODB_DB_NAME:-fake_news_detector}
+      
+      # Reddit API Configuration
+      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
+      - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET}
+      - REDDIT_USER_AGENT=${REDDIT_USER_AGENT:-FakeNewsDetector/2.0}
+      
+      # HuggingFace Configuration
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
+      - HUGGINGFACE_MODEL=${HUGGINGFACE_MODEL:-Pulk17/Fake-News-Detection}
+      
+      # Crawler Configuration
+      - SUBREDDITS=${SUBREDDITS:-news,worldnews,politics,technology,science}
+      - CRAWL_INTERVAL_MINUTES=${CRAWL_INTERVAL_MINUTES:-30}
+      - POSTS_PER_SUBREDDIT=${POSTS_PER_SUBREDDIT:-100}
+      
+      # API Configuration
+      - ENVIRONMENT=production
+      - DEBUG=False
+      - API_RELOAD=False
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - fake-news-network
+    volumes:
+      - backend-logs:/app/logs
+
+  # ========================
+  # FRONTEND (Next.js)
+  # ========================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fake-news-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NODE_ENV=production
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - fake-news-network
+
+  # ========================
+  # NGINX REVERSE PROXY (Optional)
+  # ========================
+  nginx:
+    image: nginx:alpine
+    container_name: fake-news-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+    networks:
+      - fake-news-network
+    profiles:
+      - production
+
+networks:
+  fake-news-network:
+    driver: bridge
+
+volumes:
+  backend-logs:
+
