@@ -70,4 +70,4 @@
     #    Lưu ý: "app.main:app" hay "main:app" phụ thuộc vào cấu trúc thư mục của bạn.
     #    Nếu file main.py nằm ngay ngoài cùng thư mục backend, dùng "main:app"
     #    Nếu file main.py nằm trong folder app/, dùng "app.main:app"
-    CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
