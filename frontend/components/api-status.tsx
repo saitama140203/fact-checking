@@ -28,6 +28,7 @@ export function ApiStatus() {
 
   useEffect(() => {
     // Check ngay khi component mount
+    
     checkHealth()
 
     // Auto-refresh mỗi 30 giây
