@@ -1,10 +1,9 @@
 /**
  * API Client for Fake News Detector Backend
- * Production-ready với retry logic, timeout, error handling
- * Connects to FastAPI backend endpoints
+ * Updated: Support DeepSeek JSON Analysis
  */
 
-// Base URL - Được config từ environment variables
+// Base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://puu14-fake-news-backend.hf.space"
 
 // ========================
@@ -19,10 +18,9 @@ interface ApiConfig {
 }
 
 const API_CONFIG: ApiConfig = {
-  timeout: 90000, // 30 seconds
+  timeout: 90000, // 90 seconds (DeepSeek can be slow)
   retryAttempts: 3,
-  retryDelay: 1000, // 1 second base delay
-  // Danh sách status code có thể retry được (4xx/5xx tạm thời)
+  retryDelay: 1000,
   retryableStatusCodes: [408, 429, 500, 502, 503, 504],
 }
 
@@ -69,8 +67,8 @@ export interface SourceCredibility {
     total_posts: number
     fake_posts: number
     real_posts: number
-    fake_ratio: number  // Ratio 0-1
-    fake_percentage: number  // Percentage 0-100
+    fake_ratio: number
+    fake_percentage: number
     avg_fake_confidence: number
     fake_avg_score: number
     real_avg_score: number
@@ -123,7 +121,7 @@ export interface TrendData {
 export interface TrendingTopic {
   keyword: string
   frequency: number
-  trending_score?: number  // Optional - not always present
+  trending_score?: number
   sample_titles: string[]
 }
 
@@ -146,6 +144,15 @@ export interface RiskIndicator {
   type: string
   description: string
   severity: "LOW" | "MEDIUM" | "HIGH"
+}
+
+// 👇 NEW: Interface cho cấu trúc JSON từ DeepSeek
+export interface DeepSeekAnalysisData {
+  risk_level: string;
+  analysis: string;
+  recommendation: string;
+  key_issues: string[];
+  summary: string;
 }
 
 export interface UserAnalysisResult {
@@ -180,47 +187,23 @@ export interface UserAnalysisResult {
       model: string
       classified_at: string
     }
-    analysis: string  // Giải thích và cảnh báo từ Gemini (tiếng Việt)
+    // 👇 UPDATE: Cho phép string hoặc object
+    analysis: string | DeepSeekAnalysisData 
   }
 }
 
-// Enhanced Prediction Result (Workflow 2.0)
 export interface EnhancedPredictionResult {
   post_id: string
   status: "success" | "already_predicted"
   title: string
-  prediction: {
-    label: "FAKE" | "REAL" | "UNCERTAIN"
-    confidence: number
-    hf?: {
-      label: "FAKE" | "REAL"
-      confidence: number
-      scores: {
-        fake: number
-        real: number
-      }
-      predicted_at: string
-      model: string
-      method: "local" | "api"
-    }
-    gemini_classifier?: {
-      label: "fake" | "real" | "uncertain"
-      confidence: number
-      reason: string
-      model: string
-      classified_at: string
-    }
-    analysis?: string  // Giải thích và cảnh báo từ Gemini (tiếng Việt)
+  prediction: UserAnalysisResult["prediction"] & {
+    hf?: any
+    gemini_classifier?: any
+    analysis?: string | DeepSeekAnalysisData
     analyzed_at: string
     workflow_version?: string
   }
-  full_result?: {
-    hf: any
-    gemini_classifier: any
-    analysis: string
-    analyzed_at: string
-    workflow_version: string
-  }
+  full_result?: any
 }
 
 export interface RedditAnalysisResult extends UserAnalysisResult {
@@ -238,7 +221,6 @@ export interface RedditAnalysisResult extends UserAnalysisResult {
     created_utc: string
     permalink: string
   }
-  // Enhanced prediction results (Workflow 2.0) - inherited from UserAnalysisResult
 }
 
 export interface QuickAnalysisResult {
@@ -327,52 +309,33 @@ export interface SystemStats {
 // UTILITY FUNCTIONS
 // ========================
 
-/**
- * Sleep utility cho retry delay
- */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/**
- * Exponential backoff delay
- */
 function getRetryDelay(attempt: number): number {
   return API_CONFIG.retryDelay * Math.pow(2, attempt)
 }
 
-/**
- * Kiểm tra xem error có thể retry được không
- */
 function isRetryableError(statusCode?: number, error?: unknown): boolean {
   if (statusCode && API_CONFIG.retryableStatusCodes.includes(statusCode)) {
     return true
   }
-  // Network errors cũng có thể retry
   if (error instanceof TypeError && error.message.includes("fetch")) {
     return true
   }
   return false
 }
 
-/**
- * Tạo AbortSignal với timeout
- * Sử dụng AbortSignal.timeout() nếu có, fallback về manual timeout
- */
 function createTimeoutSignal(timeoutMs: number): AbortSignal {
-  // Sử dụng native AbortSignal.timeout() nếu có (Node.js 17.3+ / modern browsers)
-  // TypeScript type checking: kiểm tra runtime
   if (
     typeof AbortSignal !== "undefined" &&
     typeof (AbortSignal as any).timeout === "function"
   ) {
     return (AbortSignal as any).timeout(timeoutMs)
   }
-  
-  // Fallback cho older environments
   const controller = new AbortController()
   setTimeout(() => controller.abort(), timeoutMs)
-  // Note: timeout sẽ tự clear khi request hoàn thành hoặc abort
   return controller.signal
 }
 
@@ -383,17 +346,13 @@ function createTimeoutSignal(timeoutMs: number): AbortSignal {
 class ApiClient {
   private baseUrl: string
   private healthCheckCache: { status: boolean; timestamp: number } | null = null
-  private readonly HEALTH_CHECK_CACHE_TTL = 60000 // 1 minute
+  private readonly HEALTH_CHECK_CACHE_TTL = 60000
 
   constructor(baseUrl: string) {
-    this.baseUrl = baseUrl.replace(/\/$/, "") // Remove trailing slash
+    this.baseUrl = baseUrl.replace(/\/$/, "")
   }
 
-  /**
-   * Kiểm tra health của backend API
-   */
   async checkHealth(): Promise<boolean> {
-    // Sử dụng cache để tránh quá nhiều health checks
     if (
       this.healthCheckCache &&
       Date.now() - this.healthCheckCache.timestamp < this.HEALTH_CHECK_CACHE_TTL
@@ -402,7 +361,7 @@ class ApiClient {
     }
 
     try {
-      const healthCheckSignal = createTimeoutSignal(5000) // 5 second timeout cho health check
+      const healthCheckSignal = createTimeoutSignal(5000)
       const response = await fetch(`${this.baseUrl}/health`, {
         method: "GET",
         signal: healthCheckSignal,
@@ -422,9 +381,6 @@ class ApiClient {
     }
   }
 
-  /**
-   * Core fetch method với retry logic, timeout, và error handling
-   */
   private async fetch<T>(
     endpoint: string,
     options?: RequestInit,
@@ -433,7 +389,6 @@ class ApiClient {
     const url = `${this.baseUrl}${endpoint}`
     const timeoutSignal = createTimeoutSignal(API_CONFIG.timeout)
     
-    // Merge signals nếu có signal trong options
     let finalSignal = timeoutSignal
     if (options?.signal) {
       const controller = new AbortController()
@@ -459,7 +414,6 @@ class ApiClient {
         },
       })
 
-      // Parse response
       let data: any
       const contentType = response.headers.get("content-type")
       if (contentType?.includes("application/json")) {
@@ -473,12 +427,10 @@ class ApiClient {
         }
       }
 
-      // Handle non-OK responses
       if (!response.ok) {
         const errorMessage =
           data?.detail || data?.message || `API Error: ${response.status} ${response.statusText}`
 
-        // Retry logic cho retryable errors
         if (
           retryCount < API_CONFIG.retryAttempts &&
           isRetryableError(response.status)
@@ -501,43 +453,31 @@ class ApiClient {
 
       return data as T
     } catch (error) {
-      // Handle AbortError (timeout)
       if (error instanceof Error && error.name === "AbortError") {
-        // Retry timeout errors
         if (retryCount < API_CONFIG.retryAttempts) {
           const delay = getRetryDelay(retryCount)
-          console.warn(
-            `Request timeout, retrying in ${delay}ms... (attempt ${retryCount + 1}/${API_CONFIG.retryAttempts})`
-          )
           await sleep(delay)
           return this.fetch<T>(endpoint, options, retryCount + 1)
         }
         throw new TimeoutError(`Request timeout after ${API_CONFIG.timeout}ms`)
       }
 
-      // Handle network errors
       if (error instanceof TypeError && error.message.includes("fetch")) {
-        // Retry network errors
         if (retryCount < API_CONFIG.retryAttempts) {
           const delay = getRetryDelay(retryCount)
-          console.warn(
-            `Network error, retrying in ${delay}ms... (attempt ${retryCount + 1}/${API_CONFIG.retryAttempts})`
-          )
           await sleep(delay)
           return this.fetch<T>(endpoint, options, retryCount + 1)
         }
         throw new NetworkError(
-          "Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng hoặc đảm bảo backend đang chạy.",
+          "Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.",
           error
         )
       }
 
-      // Re-throw ApiError và các errors khác
       if (error instanceof ApiError || error instanceof NetworkError || error instanceof TimeoutError) {
         throw error
       }
 
-      // Unknown error
       throw new ApiError(
         error instanceof Error ? error.message : "Unknown error occurred",
         undefined,
@@ -560,7 +500,7 @@ class ApiClient {
   }
 
   // ========================
-  // USER ANALYSIS (NEW!)
+  // USER ANALYSIS
   // ========================
 
   async analyzeText(title: string, content?: string, sourceUrl?: string): Promise<UserAnalysisResult> {
@@ -590,17 +530,9 @@ class ApiClient {
   // ========================
 
   async getSourceCredibility(domain: string, minPosts = 5): Promise<SourceCredibility> {
-    // Validate domain format (basic validation)
     if (!domain || typeof domain !== "string") {
       throw new ApiError("Domain must be a non-empty string", 400, "/analysis/source")
     }
-    
-    // Basic domain format validation (allow alphanumeric, dots, hyphens)
-    const domainPattern = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/
-    if (!domainPattern.test(domain.trim())) {
-      throw new ApiError("Invalid domain format", 400, "/analysis/source")
-    }
-    
     const sanitizedDomain = domain.trim().toLowerCase()
     return this.fetch(`/analysis/source/${encodeURIComponent(sanitizedDomain)}?min_posts=${minPosts}`)
   }
@@ -746,10 +678,8 @@ class ApiClient {
   }
 }
 
-// Export singleton instance
 export const api = new ApiClient(API_BASE_URL)
 
-// Export individual functions for backwards compatibility
 export const getSourceCredibility = (domain: string, minPosts = 5) => api.getSourceCredibility(domain, minPosts)
 export const getTopCredibleSources = (limit = 20, minPosts = 10) => api.getTopCredibleSources(limit, minPosts)
 export const getWarningSources = (limit = 20, minPosts = 5) => api.getWarningSources(limit, minPosts)
