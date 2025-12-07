@@ -19,7 +19,7 @@ interface ApiConfig {
 }
 
 const API_CONFIG: ApiConfig = {
-  timeout: 30000, // 30 seconds
+  timeout: 90000, // 30 seconds
   retryAttempts: 3,
   retryDelay: 1000, // 1 second base delay
   // Danh sách status code có thể retry được (4xx/5xx tạm thời)
